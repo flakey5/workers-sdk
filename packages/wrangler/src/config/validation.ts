@@ -2707,6 +2707,8 @@ function validateContainerApp(
 					"class_name",
 					"scheduling_policy",
 					"instance_type",
+					"wrangler_ssh",
+					"authorized_keys",
 					"configuration",
 					"constraints",
 					"rollout_step_percentage",
@@ -2722,6 +2724,34 @@ function validateContainerApp(
 					Object.keys(containerAppOptional.configuration),
 					["image", "secrets", "labels", "disk", "vcpu", "memory_mib"]
 				);
+			}
+
+			if ("wrangler_ssh" in containerAppOptional) {
+				validateAdditionalProperties(
+					diagnostics,
+					`${field}.wrangler_ssh`,
+					Object.keys(containerAppOptional.wrangler_ssh),
+					["enabled", "port"]
+				)
+
+				if (!("authorized_keys" in containerAppOptional)) {
+					// todo
+				}
+			}
+
+			if ("authorized_keys" in containerAppOptional) {
+				if (!Array.isArray(containerAppOptional.authorized_keys)) {
+					diagnostics.errors.push(`${field}.authorized_keys must be an array`)
+				} else {
+					for (let i = 0; i < containerAppOptional.authorized_keys.length; i++) {
+						validateAdditionalProperties(
+							diagnostics,
+							`${field}.authorized_keys[${i}]`,
+							Object.keys(containerAppOptional.authorized_keys[i]),
+							["name", "public_key"]
+						)
+					}
+				}
 			}
 
 			// Instance Type validation: When present, the instance type should be either (1) a string

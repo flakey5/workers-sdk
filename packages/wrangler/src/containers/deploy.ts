@@ -75,6 +75,8 @@ function isObject(value: unknown): value is Record<string, unknown> {
 function createApplicationToModifyApplication(
 	req: CreateApplicationRequest
 ): ModifyApplicationRequestBody {
+	const { wrangler_ssh } = req.configuration;
+console.log('modify', req)
 	return {
 		configuration: req.configuration,
 		max_instances: req.max_instances,
@@ -82,6 +84,8 @@ function createApplicationToModifyApplication(
 		affinities: req.affinities,
 		scheduling_policy: req.scheduling_policy,
 		rollout_active_grace_period: req.rollout_active_grace_period,
+		wrangler_ssh: wrangler_ssh ? { enabled: wrangler_ssh.enabled, port: wrangler_ssh.port } : undefined,
+		authorized_keys: req.configuration.authorized_keys ?? undefined
 	};
 }
 
@@ -180,6 +184,8 @@ function containerConfigToCreateRequest(
 				containerApp.observability.logs_enabled,
 				prevApp?.configuration.observability
 			),
+			wrangler_ssh: containerApp.wrangler_ssh ? { enabled: containerApp.wrangler_ssh.enabled, port: containerApp.wrangler_ssh.port } : undefined,
+			authorized_keys: containerApp.authorized_keys ?? undefined,
 		},
 		// deprecated in favour of max_instances
 		instances: 0,
@@ -232,7 +238,7 @@ export async function apply(
 	log(dim("Container application changes\n"));
 
 	const accountId = config.account_id || (await getAccountId(config));
-
+	console.log('containerConfig', containerConfig)
 	// let's always convert normalised container config -> CreateApplicationRequest
 	// since CreateApplicationRequest is a superset of ModifyApplicationRequestBody
 	const appConfig = containerConfigToCreateRequest(
@@ -492,6 +498,7 @@ export function cleanApplicationFromAPI(
 	currentConfig: ContainerNormalizedConfig,
 	accountId: string
 ): Partial<ModifyApplicationRequestBody> & Pick<Application, "configuration"> {
+	console.log('previous', prev.configuration)
 	const cleanedPreviousApp: Partial<ModifyApplicationRequestBody> &
 		Pick<Application, "configuration"> = {
 		configuration: {

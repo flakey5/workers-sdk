@@ -1094,7 +1094,7 @@ See https://developers.cloudflare.com/workers/platform/compatibility-dates for m
 		deployWfpUserWorker(props.dispatchNamespace, versionId);
 		return { versionId, workerTag };
 	}
-
+console.log('normalized?Container', JSON.stringify(normalisedContainerConfig))
 	if (normalisedContainerConfig.length) {
 		assert(versionId && accountId);
 		await deployContainers(config, normalisedContainerConfig, {

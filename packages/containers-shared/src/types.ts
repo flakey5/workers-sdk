@@ -1,4 +1,9 @@
-import type { InstanceType, SchedulingPolicy } from "./client";
+import type {
+	InstanceType,
+	SchedulingPolicy,
+	SSHPublicKeyItemV3,
+	WranglerSSHConfig,
+} from "./client";
 
 export interface Logger {
 	debug: (...args: unknown[]) => void;
@@ -66,6 +71,8 @@ export type SharedContainerConfig = {
 	/** if undefined in config, defaults to "full_auto" */
 	rollout_kind: "full_auto" | "full_manual" | "none";
 	rollout_active_grace_period: number;
+	wrangler_ssh?: WranglerSSHConfig;
+	authorized_keys?: Array<SSHPublicKeyItemV3>;
 	constraints: {
 		regions?: string[];
 		cities?: string[];

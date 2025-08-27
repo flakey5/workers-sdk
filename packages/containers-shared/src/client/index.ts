@@ -192,6 +192,7 @@ export { SecretNotFound } from "./models/SecretNotFound";
 export type { SSHPublicKey } from "./models/SSHPublicKey";
 export type { SSHPublicKeyID } from "./models/SSHPublicKeyID";
 export type { SSHPublicKeyItem } from "./models/SSHPublicKeyItem";
+export type { SSHPublicKeyItemV3 } from "./models/SSHPublicKeyItemV3";
 export { SSHPublicKeyNotFoundError } from "./models/SSHPublicKeyNotFoundError";
 export type { UnAuthorizedError } from "./models/UnAuthorizedError";
 export type { UnixTimestamp } from "./models/UnixTimestamp";
@@ -199,6 +200,8 @@ export type { UnknownAccount } from "./models/UnknownAccount";
 export { UpdateApplicationRolloutRequest } from "./models/UpdateApplicationRolloutRequest";
 export type { UpdateRolloutResponse } from "./models/UpdateRolloutResponse";
 export type { UserDeploymentConfiguration } from "./models/UserDeploymentConfiguration";
+export type { WranglerSSHConfig } from "./models/WranglerSSHConfig";
+export type { WranglerSSHResponse } from "./models/WranglerSSHResponse";
 
 export { AccountService } from "./services/AccountService";
 export { ApplicationsService } from "./services/ApplicationsService";

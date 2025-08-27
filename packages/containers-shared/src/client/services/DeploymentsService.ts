@@ -18,6 +18,7 @@ import type { ModifyDeploymentV2RequestBody } from "../models/ModifyDeploymentV2
 import type { ModifyUserDeploymentConfiguration } from "../models/ModifyUserDeploymentConfiguration";
 import type { PlacementID } from "../models/PlacementID";
 import type { ReplaceDeploymentRequestBody } from "../models/ReplaceDeploymentRequestBody";
+import type { WranglerSSHResponse } from "../models/WranglerSSHResponse";
 
 export class DeploymentsService {
 	/**
@@ -77,6 +78,34 @@ export class DeploymentsService {
 				401: `Unauthorized`,
 				404: `Deployment not found`,
 				500: `Deployment Creation Error`,
+			},
+		});
+	}
+
+	/**
+	 * Get credentials to SSH into a Container
+	 * Get a JWT to hit the SSH port on a given container.
+	 * @param applicationId
+	 * @param deploymentId
+	 * @returns WranglerSSHResponse Credentials to SSH into a Container
+	 * @throws ApiError
+	 */
+	public static containerWranglerSsh(
+		applicationId: ApplicationID,
+		deploymentId: DeploymentID
+	): CancelablePromise<WranglerSSHResponse> {
+		return __request(OpenAPI, {
+			method: "GET",
+			url: "/applications/{application_id}/deployments/{deployment_id}/ssh",
+			path: {
+				application_id: applicationId,
+				deployment_id: deploymentId,
+			},
+			errors: {
+				400: `Unknown account`,
+				401: `Unauthorized`,
+				404: `Deployment not found`,
+				500: `There has been an internal error`,
 			},
 		});
 	}

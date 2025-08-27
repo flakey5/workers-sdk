@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { createServer } from "node:net";
 import {
 	cancel,
 	endSection,
@@ -8,7 +10,12 @@ import {
 import { processArgument } from "@cloudflare/cli/args";
 import { dim, gray } from "@cloudflare/cli/colors";
 import { inputPrompt, spinner } from "@cloudflare/cli/interactive";
-import { ApiError, ApplicationsService } from "@cloudflare/containers-shared";
+import {
+	ApiError,
+	ApplicationsService,
+	DeploymentsService,
+} from "@cloudflare/containers-shared";
+import { WebSocket } from "undici";
 import { wrap } from "../cloudchamber/helpers/wrap";
 import { UserError } from "../errors";
 import { isNonInteractiveOrCI } from "../is-interactive";
@@ -21,7 +28,170 @@ import type {
 import type {
 	Application,
 	ListApplications,
+	WranglerSSHResponse,
 } from "@cloudflare/containers-shared";
+import { promiseSpinner } from "../cloudchamber/common";
+
+export function sshYargs(args: CommonYargsArgv) {
+	// TODO other ssh args to pass along
+	return args
+		.positional("appID", {
+			describe: "id of the container instance",
+			type: "string",
+			demandOption: true,
+		})
+		.positional("deployment", {
+			describe: "id of the deployment",
+			type: "string",
+			demandOption: true,
+		});
+}
+
+export async function sshCommand(
+	sshArgs: StrictYargsOptionsToInterface<typeof sshYargs>,
+	_config: Config
+) {
+	let sshResponse: WranglerSSHResponse;
+	try {
+		sshResponse = await promiseSpinner(DeploymentsService.containerWranglerSsh(
+			sshArgs.appID,
+			sshArgs.deployment
+		), { message: 'Authenticating' })
+	} catch (err) {
+		if (!(err instanceof Error)) {
+			throw err;
+		}
+
+		if (err instanceof ApiError) {
+			if (err.status === 400 || err.status === 404) {
+				throw new UserError(
+					`There has been an error when trying to SSH into the container.\n${err.body.error}`
+				);
+			}
+
+			throw new Error(
+				`There has been an unknown error when trying to SSH into the container.\n${JSON.stringify(err.body)}`
+			);
+		}
+
+		throw new Error(
+			`There has been an internal error when trying to SSH into the container.\n${err.message}`
+		);
+	}
+
+	console.log('url', sshResponse.url)
+	console.log('token', sshResponse.token)
+
+	// try {
+	// const r = await fetch(`http${sshResponse.url.substring(2)}`, {
+	// 	headers: {
+	// 		'Authorization': `Bearer ${sshResponse.token}`
+	// 	}
+	// })
+
+	// console.log(r.status, await r.text());
+	// } catch (err) {
+	// 	console.error(err)
+	// }
+
+	let hasConnection = false;
+	const proxy = createServer((inbound) => {
+		if (hasConnection) {
+			inbound.end();
+			return;
+		}
+
+		hasConnection = true;
+		console.log("[tcp proxy] new inbound");
+
+		const ws = new WebSocket(sshResponse.url, {
+			headers: {
+				'Authorization': `Bearer ${sshResponse.token}`
+			},
+			// protocols: 'wss'
+		});
+
+		ws.addEventListener("error", (err) => {
+			console.error("Web socket error:", err.error);
+			inbound.end();
+			proxy.close();
+		});
+
+		ws.addEventListener("open", () => {
+			console.log("[ws] opened");
+
+			inbound.on("connect", () => {
+				console.log("[tcp proxy] connected");
+			});
+
+			inbound.on("data", (data) => {
+				ws.send(data);
+			});
+
+			inbound.on("close", () => {
+				ws.close();
+				proxy.close();
+			});
+
+			ws.addEventListener("message", async ({ data }) => {
+				const arrayBuffer = await data.arrayBuffer();
+				const arr = new Uint8Array(arrayBuffer);
+
+				inbound.write(arr);
+			});
+
+			ws.addEventListener("close", () => {
+				inbound.end();
+				proxy.close();
+			});
+		});
+	});
+
+	const controller = new AbortController();
+	proxy.listen({ port: 0, signal: controller.signal });
+
+	const proxyAddress = proxy.address();
+	if (proxyAddress === null || typeof proxyAddress !== "object") {
+		throw new Error("Couldn't get local SSH TCP proxy address");
+	}
+console.log('proxyaddress', proxyAddress.port)
+	// TODO(flakey5) support ssh flags here
+	const child = execFile("ssh", [
+		"cloudchamber@127.0.0.1",
+		"-p",
+		`${proxyAddress.port}`,
+	]);
+
+	if (child.stdin === null || child.stdout === null || child.stderr === null) {
+		throw new TypeError("ssh process missing stdin, stdout, or stderr");
+	}
+
+	process.stdin.pipe(child.stdin);
+	child.stdout.pipe(process.stdout);
+	child.stderr.pipe(process.stderr);
+
+	const childKilled = new Promise((resolve, reject) => {
+		child.on("close", () => {
+			resolve(undefined);
+		});
+
+		child.on("error", (err) => {
+			reject(err);
+		});
+
+		child.on("exit", (code) => {
+			if (code === 0) {
+				resolve(undefined);
+			} else {
+				reject(new Error(`ssh exited with status code ${code}`));
+			}
+		});
+	});
+	await childKilled;
+
+	// Proxy should already be cleaned up but just in case
+	controller.abort();
+}
 
 export function deleteYargs(args: CommonYargsArgv) {
 	return args.positional("ID", {
